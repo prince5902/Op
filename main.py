@@ -21,7 +21,7 @@ except ImportError:
 
 # === CONFIGURATION ===
 BOT_TOKEN = "8658535528:AAG_LrE7L5TRkTM7fkC-RaqPIR8N1qOfttk"
-PANEL_API_KEY = "np_live_fGUa8AY7suPRN0pVFVXxZft-h3blotEOZwOWM-8stJk"
+PANEL_API_KEY = "ZNX_ZMJG4X1QBNIUR1HDSZ1P31ED"
 GROUP_ID = -1004342739367
 
 API_BASE_URL = "https://numberpanel.tech/api"
@@ -114,13 +114,12 @@ async def background_otp_forwarder(bot):
 
 # /start কমান্ড ও মেইন মেনু
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
     welcome_text = (
-        f"👑 **NUMBER BOT**\n\n"
-        f"🚀 **Welcome to Number & OTP Service**\n\n"
-        f"✅ Choose an option below to continue using the bot.\n\n"
-        f"💎 **Premium OTP Service**\n"
-        f"🛡️ **DEVELOPED BY SIJAN** 🛡️"
+        "👑 **NUMBER BOT**\n\n"
+        "🚀 **Welcome to Number & OTP Service**\n\n"
+        "✅ Choose an option below to continue using the bot.\n\n"
+        "💎 **Premium OTP Service**\n"
+        "🛡️ **DEVELOPED BY SIJAN** 🛡️"
     )
     
     keyboard = [
@@ -136,7 +135,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(welcome_text, reply_markup=markup, parse_mode="Markdown")
 
-# সার্ভিস সিলেকশন মেনু (WhatsApp, Telegram ইত্যাদি)
+# সার্ভিস সিলেকশন মেনু
 async def menu_services(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -150,7 +149,7 @@ async def menu_services(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-# প্যানেল থেকে অটো নম্বর রিকোয়েস্ট করে স্ক্রিনশটের মতো বাটনসহ শো করা[span_4](start_span)[span_4](end_span)[span_5](start_span)[span_5](end_span)
+# প্যানেল থেকে অটো নম্বর রিকোয়েস্ট করে ডিসপ্লে করা
 async def fetch_and_show_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer("Fetching number from panel...")
@@ -181,7 +180,6 @@ async def fetch_and_show_number(update: Update, context: ContextTypes.DEFAULT_TY
                 f"⏳ **Waiting for OTP...**"
             )
             
-            # স্ক্রিনশটের মতো কপি করার বাটন এবং অন্যান্য অপশন
             if CopyTextButton:
                 try:
                     num_btn = InlineKeyboardButton(text=f"🇳🇬 📋 {number}", copy_text=CopyTextButton(text=number))
@@ -198,11 +196,12 @@ async def fetch_and_show_number(update: Update, context: ContextTypes.DEFAULT_TY
             ]
             await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
         else:
-            await query.answer("❌ এই মুহূর্তে প্যানেলে নম্বর পাওয়া যায়নি!", show_alert=True)
+            error_msg = res_data.get("error", "Unknown error")
+            await query.answer(f"❌ প্যানেল এরর: {error_msg}", show_alert=True)
     except Exception as e:
         await query.answer(f"⚠️ Error: {str(e)}", show_alert=True)
 
-# অন্যান্য সাধারণ বাটনের রেসপন্স
+# বাটন হ্যান্ডলার
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     data = query.data
