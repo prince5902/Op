@@ -3,24 +3,23 @@ import re
 import requests
 import phonenumbers
 from phonenumbers import geocoder
-from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, Update
 from telegram.constants import ParseMode
 from telegram.request import HTTPXRequest
+from telegram.ext import Application, CommandHandler, ContextTypes
+
 try:
     from telegram import CopyTextButton
 except ImportError:
     CopyTextButton = None
 
-# === CONFIGURATION ===
 BOT_TOKEN = "8389209190:AAHGqxrGlaZv0aGaEOXtJ0DmYyqATzE2OXU"
 GROUP_ID = -1004342739367
 
-# Zenex Network Config
 API_KEY = "ZNX_ZMJG4X1QBNIUR1HDSZ1P31ED"
 API_URL = "https://www.zenexnetwork.com/api/v1/global-broadcast"
 POLL_INTERVAL = 6
 
-# Emojis for services
 APP_EMOJIS = {
     "whatsapp": "💬",
     "telegram": "✈️",
@@ -34,6 +33,156 @@ APP_EMOJIS = {
 def get_app_emoji(service_name):
     service_name = str(service_name).lower()
     for key, emoji in APP_EMOJIS.items():
+        if key in service_name:
+            return emoji
+    return "📱"
+
+def get_country_info(phone_number):
+    if not str(phone_number).startswith('+'):
+        phone_number = '+' + str(phone_number)
+    try:
+        parsed = phonenumbers.parse(phone_number)
+        country_name = geocoder.country_name_for_number(parsed, "en") or "Unknown"
+        region = phonenumbers.region_code_for_number(parsed)
+        if region:
+            flag = chr(ord(region[0]) + 127397) + chr(ord(region[1]) + 127397)
+        else:
+            flag = "🏳️"
+        iso = region or "UN"
+        return country_name, flag, iso
+    except:
+        return "Unknown", "🏳️", "UN"
+
+def extract_otp(msg):
+    otp_match = re.search(r'\d{3}[-\s]?\d{3,4}|\d{4,8}', str(msg))
+    return otp_match.group(0) if otp_match else 'Unknown'
+
+def mask_number(num):
+    num = str(num).replace('+', '')
+    if len(num) <= 6:
+        return num
+    return num[:3] + "x" * (len(num) - 6) + num[-3:]
+
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_name = update.effective_user.first_name or "User"
+    
+    # প্রথম টেক্সট অ্যানিমেশন স্টাইল
+    msg1 = (
+        "💯% <b>System Ready!</b>\n"
+        "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ 100%\n\n"
+        "╭───[ <b>ROOT@ZENEX TECH OTP</b> ]────────────\n"
+        "├─🐱 <b>ACCESS GRANTED</b>\n"
+        f"└─➡️ Hey <b>{user_name}</b>, Welcome to Free OTP Bot!"
+    )
+    
+    # দ্বিতীয় স্টাইলিশ কার্ড
+    msg2 = (
+        "╔═════════════════════════╗\n"
+        "       👑 <b>ZENEX OTP BOT</b>\n"
+        "╚═════════════════════════╝\n\n"
+        "🚀 <b>Welcome to Number & OTP Service</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🛑 <b>Choose an option below to continue using the bot.</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "💎 <i>Premium OTP Service</i>\n"
+        "🛡️ <b>DEVELOPED BY SIJAN</b> 🛡️"
+    )
+    
+    # কিবোর্ড লেআউট
+    keyboard = [
+        [KeyboardButton("📱 GET NUMBER"), KeyboardButton("🔍 Search Number")],
+        [KeyboardButton("👑 TRAFFIC"), KeyboardButton("🌐 2FA ONLINE")],
+        [KeyboardButton("🎁 Refer"), KeyboardButton("🏧 WITHDRAWAL")],
+        [KeyboardButton("👤 SUPPORT")]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
+    await update.message.reply_text(msg1, parse_mode=ParseMode.HTML)
+    await update.message.reply_text(msg2, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+
+async def send_to_group(bot, service, num, msg):
+    country_name, flag, iso = get_country_info(num)
+    app_emoji = get_app_emoji(service)
+    masked = mask_number(num)
+    otp = extract_otp(msg)
+    
+    text = f"{flag} <b>#{iso} {app_emoji}{service} {masked}</b>"
+    
+    if CopyTextButton:
+        try:
+            row1 = [InlineKeyboardButton(text=f"{otp}", copy_text=CopyTextButton(text=otp))]
+        except:
+            row1 = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
+    else:
+        row1 = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
+        
+    row2 = [
+        InlineKeyboardButton(text="Methods", url="https://youtube.com/@xclusor"),
+        InlineKeyboardButton(text="Channel", url="https://t.me/+a0zwxrh1Il43NjM1")
+    ]
+    row3 = [InlineKeyboardButton(text="OTP Panel", url="https://www.zenexnetwork.com")]
+    
+    markup = InlineKeyboardMarkup([row1, row2, row3])
+    
+    try:
+        await bot.send_message(
+            chat_id=GROUP_ID,
+            text=text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=markup,
+            disable_web_page_preview=True
+        )
+    except Exception as e:
+        print(f"❌ Failed to send to group: {e}")
+
+async def poll_api(bot):
+    seen_otps = set()
+    headers = {"User-Agent": "Mozilla/5.0", "mapikey": API_KEY}
+    
+    while True:
+        try:
+            res = requests.get(API_URL, headers=headers, timeout=10)
+            data = res.json()
+            items = data if isinstance(data, list) else data.get("data", data.get("otps", []))
+            
+            for item in reversed(items):
+                service = item.get("service") or item.get("app", "Service")
+                num = item.get("number") or item.get("phone") or item.get("range", "000000")
+                msg = item.get("message") or item.get("otp") or item.get("sms", "")
+                nid = item.get("nid", f"{service}_{num}_{msg}")
+                
+                if nid not in seen_otps:
+                    seen_otps.add(nid)
+                    await send_to_group(bot, service, num, msg)
+                    await asyncio.sleep(1)
+                    
+            if len(seen_otps) > 10000:
+                seen_otps = set(list(seen_otps)[-5000:])
+        except Exception as e:
+            print(f"⚠️ Error fetching API: {e}")
+            
+        await asyncio.sleep(POLL_INTERVAL)
+
+async def main():
+    request = HTTPXRequest(connect_timeout=20, read_timeout=20)
+    app = Application.builder().token(BOT_TOKEN).request(request).build()
+    
+    app.add_handler(CommandHandler("start", start_command))
+    
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    
+    print("🚀 Bot Started with Start Menu & Auto OTP Fetcher!")
+    
+    # ব্যাকগ্রাউন্ডে এপিআই চেকিং টাস্ক
+    asyncio.create_task(poll_api(app.bot))
+    
+    # রানটাইম ধরে রাখার জন্য
+    await asyncio.Event().wait()
+
+if __name__ == "__main__":
+    asyncio.run(main())
         if key in service_name:
             return emoji
     return "📱"
