@@ -7,6 +7,8 @@ import requests
 import phonenumbers
 from datetime import datetime
 from phonenumbers import geocoder
+from threading import Thread
+from flask import Flask
 
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
@@ -20,6 +22,19 @@ OWNER_ID = 7270449654
 # =======================
 API_KEY = "ZNX_ZMJG4X1QBNIUR1HDSZ1P31ED"
 API_URL = "https://www.zenexnetwork.com/api/v1/global-broadcast"
+
+# =======================
+#    FLASK APP (For Render 24/7 Uptime)
+# =======================
+app_flask = Flask(__name__)
+
+@app_flask.route('/')
+def home():
+    return "🤖 Telegram OTP Bot is running successfully with Flask!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    app_flask.run(host="0.0.0.0", port=port)
 
 # =======================
 #    CONFIG STORAGE (Relative Path Rule)
@@ -1265,8 +1280,13 @@ async def post_init(application):
 
 
 def main():
-    print("🚀 Initializing telegram bot core with Zenex API...", flush=True) 
+    print("🚀 Initializing telegram bot core with Zenex API and Flask...", flush=True) 
     
+    # Run Flask in a separate background thread so Render port binding succeeds
+    flask_thread = Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+
     app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
     
     app.add_handler(CommandHandler("start", start_command))
