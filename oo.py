@@ -11,8 +11,8 @@ from phonenumbers import geocoder
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
-# ⚠️ আপনার বটের টোকেন এবং আপনার আসল ওনার আইডি (7270449654)
-BOT_TOKEN = "8878447019:AD3eqIhVJqqnJAu32MoQos3Q"
+# ⚠️ আপনার নতুন টোকেন এবং ওনার আইডি (7270449654)
+BOT_TOKEN = "8389209190:AAHy_K4T9CLQ2UnT24-Y1U89CVN4w-BraWU"
 OWNER_ID = 7270449654
 
 # =======================
@@ -39,7 +39,7 @@ def load_config():
                     "otp_channel_link": "https://t.me/Crypto_Zone_nexxt",
                     "official_channel_link": "https://t.me/Crypto_Zone_nexxt",
                     "force_channels": [],  # ফোর্স জয়েন চ্যানেলের তালিকা
-                    "bot_username": "Not Configured Yet",
+                    "bot_username": "GeminiAiBot",
                     "refer_bonus": 10.0,
                     "withdraw_methods": ["BKash", "Nagad"],
                     "min_withdraw": 50.0,
@@ -57,7 +57,7 @@ def load_config():
         "otp_channel_link": "https://t.me/Crypto_Zone_nexxt",
         "official_channel_link": "https://t.me/Crypto_Zone_nexxt",
         "force_channels": [],
-        "bot_username": "Not Configured Yet",
+        "bot_username": "GeminiAiBot",
         "refer_bonus": 10.0,
         "withdraw_methods": ["BKash", "Nagad"],
         "min_withdraw": 50.0,
@@ -251,7 +251,7 @@ async def send_force_join_message(update_or_query, context, lang, user_id):
 
 
 # =======================
-#    ZENEX API PARSING (List/Dict Support)
+#    ZENEX API PARSING
 # =======================
 
 def fetch_zenex_data():
@@ -411,7 +411,7 @@ async def send_to_configured_channel(bot, message):
         return
         
     official_link = config.get("official_channel_link", "https://t.me/Crypto_Zone_nexxt")
-    bot_username = config.get("bot_username", "MyBot")
+    bot_username = config.get("bot_username", "GeminiAiBot")
     
     row1 = [
         InlineKeyboardButton(text="📱 Channel", url=official_link),
@@ -563,7 +563,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         
     elif text == strings["menu_refer"]:
         config = load_config()
-        bot_username = config.get("bot_username", "Not Set")
+        bot_username = config.get("bot_username", "GeminiAiBot")
         refer_bonus = config.get("refer_bonus", 10.0)
         link = f"https://t.me/{bot_username}?start={user_id}"
         
@@ -1222,7 +1222,7 @@ async def process_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 # =======================
-#    BACKGROUND TASKS (Zenex Poller)
+#    BACKGROUND TASKS
 # =======================
 
 async def zenex_sms_worker(bot):
