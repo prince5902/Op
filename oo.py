@@ -4,7 +4,7 @@ import json
 import requests
 import phonenumbers
 from phonenumbers import geocoder
-from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, Update, InlineQuery
+from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, Update
 from telegram.constants import ParseMode
 from telegram.request import HTTPXRequest
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
@@ -197,7 +197,6 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         service_name = query.data.replace("srv_", "")
         context.user_data["selected_service"] = service_name
         
-        # দেশ নির্বাচন মেনু
         keyboard = [
             [InlineKeyboardButton("🇳🇬 NIGERIA", callback_data="cnt_nigeria"), InlineKeyboardButton("🇬🇲 GAMBIA", callback_data="cnt_gambia")],
             [InlineKeyboardButton("🇦🇱 ALBANIA", callback_data="cnt_albania"), InlineKeyboardButton("🇹🇬 TOGO", callback_data="cnt_togo")],
@@ -266,7 +265,6 @@ async def send_to_group_and_users(bot, service, num, msg):
     else:
         row1 = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
         
-    # স্ক্রিনশটের মতো Channel এবং Number-Bot বাটন
     row2 = [
         InlineKeyboardButton(text="📢 Channel", url="https://t.me/+a0zwxrh1Il43NjM1"),
         InlineKeyboardButton(text="🤖 Number-Bot", url="https://t.me/Gemini_Ai_Chats_bot")
