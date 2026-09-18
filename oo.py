@@ -16,8 +16,6 @@ except ImportError:
 
 BOT_TOKEN = "8389209190:AAHGqxrGlaZv0aGaEOXtJ0DmYyqATzE2OXU"
 GROUP_ID = -1004342739367
-
-# আপনার Telegram User ID
 ADMIN_ID = 7270449654
 
 API_KEY = "ZNX_ZMJG4X1QBNIUR1HDSZ1P31ED"
@@ -25,6 +23,7 @@ API_URL = "https://www.zenexnetwork.com/api/v1/global-broadcast"
 POLL_INTERVAL = 6
 
 USER_FILE = "users.json"
+active_number_subscribers = {}
 
 def load_users():
     try:
@@ -184,14 +183,17 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    user_id = query.from_user.id
     
     if query.data == "admin_broadcast":
-        if query.from_user.id == ADMIN_ID:
+        if user_id == ADMIN_ID:
             context.user_data["waiting_for_broadcast"] = True
             await query.edit_message_text("✍️ আপনার ব্রডকাস্ট মেসেজটি লিখে পাঠান:")
     elif query.data == "admin_stats":
         await query.edit_message_text(f"📊 মোট ব্যবহারকারী: {len(bot_users)} জন।")
     elif query.data == "close_menu":
+        if user_id in active_number_subscribers:
+            del active_number_subscribers[user_id]
         await query.message.delete()
     elif query.data.startswith("srv_"):
         service_name = query.data.replace("srv_", "")
@@ -207,6 +209,8 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"📍 <b>Select a country for {service_name.upper()}:</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
     
     elif query.data == "back_to_services":
+        if user_id in active_number_subscribers:
+            del active_number_subscribers[user_id]
         keyboard = [
             [InlineKeyboardButton("🏆 1XBET", callback_data="srv_1xbet"), InlineKeyboardButton("📘 FACEBOOK", callback_data="srv_facebook")],
             [InlineKeyboardButton("📸 INSTAGRAM", callback_data="srv_instagram"), InlineKeyboardButton("✈️ TELEGRAM", callback_data="srv_telegram")],
@@ -224,16 +228,19 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if items:
                 keyboard = []
-                for item in items[:5]:
+                for item in items[:6]:
                     num = item.get("number") or item.get("phone") or "000000"
+                    if not str(num).startswith("+"):
+                        num = "+" + str(num)
                     country_name, flag, iso = get_country_info(num)
-                    keyboard.append([InlineKeyboardButton(f"{flag} {num}", callback_data=f"num_{num}")])
+                    # প্যানেলের ফিডের মতো ফুল নাম্বার দেখানোর জন্য বাটন তৈরি করা হলো
+                    keyboard.append([InlineKeyboardButton(f"{flag}  {num} ({iso})", callback_data=f"num_{num}")])
                 
                 keyboard.append([InlineKeyboardButton("🗑️ Remove CC", callback_data="close_menu")])
                 keyboard.append([InlineKeyboardButton("⚙️ Change Number", callback_data="back_to_services"), InlineKeyboardButton("🛡️ OTP Group", url="https://t.me/+a0zwxrh1Il43NjM1")])
                 keyboard.append([InlineKeyboardButton("⬅️ Back", callback_data="back_to_services")])
                 
-                await query.edit_message_text("📱 <b>Available Live Numbers:</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+                await query.edit_message_text("📱 <b>Available Live Numbers (Feed):</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
             else:
                 await query.edit_message_text("❌ এই মুহূর্তে এপিআই থেকে কোনো নাম্বার পাওয়া যায়নি।")
         except Exception:
@@ -241,21 +248,44 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data.startswith("num_"):
         num = query.data.replace("num_", "")
+        active_number_subscribers[user_id] = num
         country_name, flag, iso = get_country_info(num)
-        msg_text = f"{flag} <b>{num} #{iso}</b>\n\n⏳ <b>Waiting for OTP...</b>"
+        msg_text = f"🌐 <b>Country:</b> {flag} {country_name} ({iso})\n\n▶️ <b>Waiting for OTP...</b>\n\n{flag}  <b>{num}</b>"
         keyboard = [
             [InlineKeyboardButton("⚙️ Change Number", callback_data="back_to_services"), InlineKeyboardButton("🛡️ OTP Group", url="https://t.me/+a0zwxrh1Il43NjM1")],
             [InlineKeyboardButton("⬅️ Back", callback_data="back_to_services")]
         ]
         await query.edit_message_text(msg_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
+async def send_to_user_if_matched(bot, service, num, msg):
+    clean_num = num.replace("+", "").strip()
+    for uid, target_num in list(active_number_subscribers.items()):
+        clean_target = target_num.replace("+", "").strip()
+        if clean_num in clean_target or clean_target in clean_num:
+            country_name, flag, iso = get_country_info(target_num)
+            otp = extract_otp(msg)
+            text = (
+                f"🎉 <b>New SMS/OTP Received!</b>\n\n"
+                f"🌐 <b>Country:</b> {flag} {country_name} ({iso})\n"
+                f"📱 <b>Number:</b> <code>{target_num}</code>\n"
+                f"⚙️ <b>Service:</b> {service.upper()}\n\n"
+                f"📥 <b>Message:</b>\n<code>{msg}</code>\n\n"
+                f"🔑 <b>OTP Code:</b> <b>{otp}</b>"
+            )
+            try:
+                await bot.send_message(chat_id=uid, text=text, parse_mode=ParseMode.HTML)
+            except Exception as e:
+                print(f"Failed to send private SMS to user {uid}: {e}")
+
 async def send_to_group_and_users(bot, service, num, msg):
+    if not str(num).startswith("+"):
+        num = "+" + str(num)
     country_name, flag, iso = get_country_info(num)
     app_emoji = get_app_emoji(service)
     masked = mask_number(num)
     otp = extract_otp(msg)
     
-    text = f"{flag} <b>#{iso} {app_emoji}{service.upper()}</b>\n<code>{masked}</code>"
+    text = f"{flag} <b>#{iso} {app_emoji}{service.upper()}</b>\n<code>{masked}</code>\n\n📩 <b>SMS/OTP:</b> {msg}"
     
     if CopyTextButton:
         try:
@@ -301,6 +331,7 @@ async def poll_api(bot):
                 
                 if nid not in seen_otps:
                     seen_otps.add(nid)
+                    await send_to_user_if_matched(bot, service, num, msg)
                     await send_to_group_and_users(bot, service, num, msg)
                     await asyncio.sleep(1)
                     
