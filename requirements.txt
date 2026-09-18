@@ -1,3 +1,4 @@
-git add requirements.txt
-git commit -m "Add requirements.txt"
-git push
+flask
+python-telegram-bot
+requests
+phonenumbers
