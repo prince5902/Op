@@ -4,7 +4,7 @@ import json
 import requests
 import phonenumbers
 from phonenumbers import geocoder
-from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, Update
+from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, Update, InlineQuery
 from telegram.constants import ParseMode
 from telegram.request import HTTPXRequest
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
@@ -49,7 +49,8 @@ APP_EMOJIS = {
     "instagram": "📸",
     "tiktok": "🎵",
     "google": "🌐",
-    "twitter": "🐦"
+    "twitter": "🐦",
+    "1xbet": "🏆"
 }
 
 def get_app_emoji(service_name):
@@ -167,26 +168,13 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ আপনার এই সেকশনে প্রবেশের অনুমতি নেই।")
             
     elif text == "📱 GET NUMBER":
-        headers = {"User-Agent": "Mozilla/5.0", "mapikey": API_KEY}
-        try:
-            res = requests.get(API_URL, headers=headers, timeout=10)
-            data = res.json()
-            items = data if isinstance(data, list) else data.get("data", data.get("otps", []))
-            
-            if items:
-                msg_text = "📱 <b>AVAILABLE LIVE NUMBERS:</b>\n━━━━━━━━━━━━━━━━━━━━\n"
-                for item in items[:5]:
-                    service = item.get("service") or item.get("app", "Service")
-                    num = item.get("number") or item.get("phone") or "000000"
-                    country_name, flag, iso = get_country_info(num)
-                    msg_text += f"{flag} <b>{service.capitalize()}</b>: <code>{num}</code>\n"
-                
-                msg_text += "\nটিপস: উপরের নাম্বারে ওটিপি পাঠালে কোডটি সরাসরি এখানে ও গ্রুপে চলে আসবে!"
-                await update.message.reply_text(msg_text, parse_mode=ParseMode.HTML)
-            else:
-                await update.message.reply_text("❌ এই মুহূর্তে এপিআই থেকে কোনো অ্যাক্টিভ নাম্বার পাওয়া যায়নি।")
-        except Exception:
-            await update.message.reply_text("⚠️ নাম্বার লোড করতে সমস্যা হয়েছে, কিছুক্ষণ পর চেষ্টা করুন।")
+        keyboard = [
+            [InlineKeyboardButton("🏆 1XBET", callback_data="srv_1xbet"), InlineKeyboardButton("📘 FACEBOOK", callback_data="srv_facebook")],
+            [InlineKeyboardButton("📸 INSTAGRAM", callback_data="srv_instagram"), InlineKeyboardButton("✈️ TELEGRAM", callback_data="srv_telegram")],
+            [InlineKeyboardButton("🎵 TIKTOK", callback_data="srv_tiktok"), InlineKeyboardButton("💬 WHATSAPP", callback_data="srv_whatsapp")],
+            [InlineKeyboardButton("❌ Close", callback_data="close_menu")]
+        ]
+        await update.message.reply_text("📍 <b>Select a service:</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
             
     elif text == "👤 SUPPORT":
         await update.message.reply_text("📞 সাপোর্ট পেতে যোগাযোগ করুন: @xclusor")
@@ -203,6 +191,64 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("✍️ আপনার ব্রডকাস্ট মেসেজটি লিখে পাঠান:")
     elif query.data == "admin_stats":
         await query.edit_message_text(f"📊 মোট ব্যবহারকারী: {len(bot_users)} জন।")
+    elif query.data == "close_menu":
+        await query.message.delete()
+    elif query.data.startswith("srv_"):
+        service_name = query.data.replace("srv_", "")
+        context.user_data["selected_service"] = service_name
+        
+        # দেশ নির্বাচন মেনু
+        keyboard = [
+            [InlineKeyboardButton("🇳🇬 NIGERIA", callback_data="cnt_nigeria"), InlineKeyboardButton("🇬🇲 GAMBIA", callback_data="cnt_gambia")],
+            [InlineKeyboardButton("🇦🇱 ALBANIA", callback_data="cnt_albania"), InlineKeyboardButton("🇹🇬 TOGO", callback_data="cnt_togo")],
+            [InlineKeyboardButton("🇱🇦 LAOS", callback_data="cnt_laos"), InlineKeyboardButton("🇺🇦 UKRAINE", callback_data="cnt_ukraine")],
+            [InlineKeyboardButton("🇪🇨 ECUADOR", callback_data="cnt_ecuador"), InlineKeyboardButton("🇵🇪 PERU", callback_data="cnt_peru")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="back_to_services")]
+        ]
+        await query.edit_message_text(f"📍 <b>Select a country for {service_name.upper()}:</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+    
+    elif query.data == "back_to_services":
+        keyboard = [
+            [InlineKeyboardButton("🏆 1XBET", callback_data="srv_1xbet"), InlineKeyboardButton("📘 FACEBOOK", callback_data="srv_facebook")],
+            [InlineKeyboardButton("📸 INSTAGRAM", callback_data="srv_instagram"), InlineKeyboardButton("✈️ TELEGRAM", callback_data="srv_telegram")],
+            [InlineKeyboardButton("🎵 TIKTOK", callback_data="srv_tiktok"), InlineKeyboardButton("💬 WHATSAPP", callback_data="srv_whatsapp")],
+            [InlineKeyboardButton("❌ Close", callback_data="close_menu")]
+        ]
+        await query.edit_message_text("📍 <b>Select a service:</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif query.data.startswith("cnt_"):
+        headers = {"User-Agent": "Mozilla/5.0", "mapikey": API_KEY}
+        try:
+            res = requests.get(API_URL, headers=headers, timeout=10)
+            data = res.json()
+            items = data if isinstance(data, list) else data.get("data", data.get("otps", []))
+            
+            if items:
+                keyboard = []
+                for item in items[:5]:
+                    num = item.get("number") or item.get("phone") or "000000"
+                    country_name, flag, iso = get_country_info(num)
+                    keyboard.append([InlineKeyboardButton(f"{flag} {num}", callback_data=f"num_{num}")])
+                
+                keyboard.append([InlineKeyboardButton("🗑️ Remove CC", callback_data="close_menu")])
+                keyboard.append([InlineKeyboardButton("⚙️ Change Number", callback_data="back_to_services"), InlineKeyboardButton("🛡️ OTP Group", url="https://t.me/+a0zwxrh1Il43NjM1")])
+                keyboard.append([InlineKeyboardButton("⬅️ Back", callback_data="back_to_services")])
+                
+                await query.edit_message_text("📱 <b>Available Live Numbers:</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+            else:
+                await query.edit_message_text("❌ এই মুহূর্তে এপিআই থেকে কোনো নাম্বার পাওয়া যায়নি।")
+        except Exception:
+            await query.edit_message_text("⚠️ নাম্বার লোড করতে সমস্যা হয়েছে।")
+
+    elif query.data.startswith("num_"):
+        num = query.data.replace("num_", "")
+        country_name, flag, iso = get_country_info(num)
+        msg_text = f"{flag} <b>{num} #{iso}</b>\n\n⏳ <b>Waiting for OTP...</b>"
+        keyboard = [
+            [InlineKeyboardButton("⚙️ Change Number", callback_data="back_to_services"), InlineKeyboardButton("🛡️ OTP Group", url="https://t.me/+a0zwxrh1Il43NjM1")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="back_to_services")]
+        ]
+        await query.edit_message_text(msg_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def send_to_group_and_users(bot, service, num, msg):
     country_name, flag, iso = get_country_info(num)
@@ -210,21 +256,23 @@ async def send_to_group_and_users(bot, service, num, msg):
     masked = mask_number(num)
     otp = extract_otp(msg)
     
-    text = f"{flag} <b>#{iso} {app_emoji}{service} {masked}</b>"
+    text = f"{flag} <b>#{iso} {app_emoji}{service.upper()}</b>\n<code>{masked}</code>"
     
     if CopyTextButton:
         try:
-            row1 = [InlineKeyboardButton(text=f"{otp}", copy_text=CopyTextButton(text=otp))]
+            row1 = [InlineKeyboardButton(text=f"📋 {otp}", copy_text=CopyTextButton(text=otp))]
         except:
             row1 = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
     else:
         row1 = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
         
-    row2 = [InlineKeyboardButton(text="Channel", url="https://t.me/+a0zwxrh1Il43NjM1")]
-    # Number Panel এ ক্লিক করলে সরাসরি Gemini_Ai_Chats_bot এ নিয়ে যাবে
-    row3 = [InlineKeyboardButton(text="Number Panel", url="https://t.me/Gemini_Ai_Chats_bot")]
+    # স্ক্রিনশটের মতো Channel এবং Number-Bot বাটন
+    row2 = [
+        InlineKeyboardButton(text="📢 Channel", url="https://t.me/+a0zwxrh1Il43NjM1"),
+        InlineKeyboardButton(text="🤖 Number-Bot", url="https://t.me/Gemini_Ai_Chats_bot")
+    ]
     
-    markup = InlineKeyboardMarkup([row1, row2, row3])
+    markup = InlineKeyboardMarkup([row1, row2])
     
     try:
         await bot.send_message(
