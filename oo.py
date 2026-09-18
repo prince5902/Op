@@ -7,7 +7,7 @@ from phonenumbers import geocoder
 from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, Update
 from telegram.constants import ParseMode
 from telegram.request import HTTPXRequest
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
 try:
     from telegram import CopyTextButton
@@ -24,7 +24,6 @@ API_KEY = "ZNX_ZMJG4X1QBNIUR1HDSZ1P31ED"
 API_URL = "https://www.zenexnetwork.com/api/v1/global-broadcast"
 POLL_INTERVAL = 6
 
-# ইউজার ডাটাবেজ (ব্রডকাস্টের জন্য)
 USER_FILE = "users.json"
 
 def load_users():
@@ -90,7 +89,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_name = update.effective_user.first_name or "User"
     
-    # ইউজার আইডি সেভ করা (ব্রডকাস্টের জন্য)
     if user_id not in bot_users:
         bot_users.add(user_id)
         save_users(bot_users)
@@ -134,7 +132,6 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
     
-    # ব্রডকাস্ট মেসেজ ওয়েটিং চেক
     if context.user_data.get("waiting_for_broadcast"):
         context.user_data["waiting_for_broadcast"] = False
         await update.message.reply_text("📢 <b>ব্রডকাস্ট শুরু হচ্ছে...</b>", parse_mode=ParseMode.HTML)
@@ -178,7 +175,6 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if items:
                 msg_text = "📱 <b>AVAILABLE LIVE NUMBERS:</b>\n━━━━━━━━━━━━━━━━━━━━\n"
-                buttons = []
                 for item in items[:5]:
                     service = item.get("service") or item.get("app", "Service")
                     num = item.get("number") or item.get("phone") or "000000"
@@ -189,7 +185,7 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(msg_text, parse_mode=ParseMode.HTML)
             else:
                 await update.message.reply_text("❌ এই মুহূর্তে এপিআই থেকে কোনো অ্যাক্টিভ নাম্বার পাওয়া যায়নি।")
-        except Exception as e:
+        except Exception:
             await update.message.reply_text("⚠️ নাম্বার লোড করতে সমস্যা হয়েছে, কিছুক্ষণ পর চেষ্টা করুন।")
             
     elif text == "👤 SUPPORT":
@@ -231,7 +227,6 @@ async def send_to_group_and_users(bot, service, num, msg):
     row3 = [InlineKeyboardButton(text="OTP Panel", url="https://www.zenexnetwork.com")]
     markup = InlineKeyboardMarkup([row1, row2, row3])
     
-    # ১. টেলিগ্রাম গ্রুপে ফরোয়ার্ড করা
     try:
         await bot.send_message(
             chat_id=GROUP_ID,
@@ -276,9 +271,8 @@ async def main():
     app = Application.builder().token(BOT_TOKEN).request(request).build()
     
     app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
-    from telegram.ext import CallbackQueryHandler
     app.add_handler(CallbackQueryHandler(handle_callbacks))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
     
     await app.initialize()
     await app.start()
@@ -290,4 +284,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
