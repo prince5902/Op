@@ -17,7 +17,7 @@ except ImportError:
 BOT_TOKEN = "8389209190:AAHGqxrGlaZv0aGaEOXtJ0DmYyqATzE2OXU"
 GROUP_ID = -1004342739367
 
-# আপনার দেওয়া Telegram User ID
+# আপনার Telegram User ID
 ADMIN_ID = 7270449654
 
 API_KEY = "ZNX_ZMJG4X1QBNIUR1HDSZ1P31ED"
@@ -220,11 +220,10 @@ async def send_to_group_and_users(bot, service, num, msg):
     else:
         row1 = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
         
-    row2 = [
-        InlineKeyboardButton(text="Methods", url="https://youtube.com/@xclusor"),
-        InlineKeyboardButton(text="Channel", url="https://t.me/+a0zwxrh1Il43NjM1")
-    ]
-    row3 = [InlineKeyboardButton(text="OTP Panel", url="https://www.zenexnetwork.com")]
+    row2 = [InlineKeyboardButton(text="Channel", url="https://t.me/+a0zwxrh1Il43NjM1")]
+    # Number Panel এ ক্লিক করলে সরাসরি Gemini_Ai_Chats_bot এ নিয়ে যাবে
+    row3 = [InlineKeyboardButton(text="Number Panel", url="https://t.me/Gemini_Ai_Chats_bot")]
+    
     markup = InlineKeyboardMarkup([row1, row2, row3])
     
     try:
