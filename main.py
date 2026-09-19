@@ -24,7 +24,7 @@ except ImportError:
 BOT_TOKEN = "8658535528:AAG_LrE7L5TRkTM7fkC-RaqPIR8N1qOfttk"
 PANEL_API_KEY = "ZNX_ZMJG4X1QBNIUR1HDSZ1P31ED"
 GROUP_ID = -1004342739367
-ADMIN_USER_ID = 7270449654  # আপনার দেওয়া অ্যাডমিন ইউজার আইডি
+ADMIN_USER_ID = 7270449654  # আপনার অ্যাডমিন ইউজার আইডি
 
 # Zenex Network API Endpoint
 API_BASE_URL = "https://api.zenexnetwork.com/v1/getnum"
@@ -40,7 +40,6 @@ app = Flask(__name__)
 def home():
     return "Zenex Number Bot with Admin Panel is active!"
 
-# রেঞ্জ ফাইল ম্যানেজমেন্ট ফাংশন
 def load_ranges():
     if os.path.exists(RANGES_FILE):
         try:
@@ -73,7 +72,6 @@ def extract_otp(msg):
     otp_match = re.search(r'\d{3}[-\s]?\d{3,4}|\d{4,8}', str(msg))
     return otp_match.group(0) if otp_match else 'Unknown'
 
-# গ্রুপে ওটিপি ফরোয়ার্ড করার ফাংশন
 async def send_to_group(bot, entry):
     service = entry[0]
     num = entry[1]
@@ -107,7 +105,6 @@ async def send_to_group(bot, entry):
     except Exception as e:
         print(f"❌ Failed to send to group: {e}")
 
-# ব্যাকগ্রাউন্ডে প্যানেলের ফিড চেক করার লুপ
 async def background_otp_forwarder(bot):
     seen_otps = set()
     try:
@@ -131,7 +128,6 @@ async def background_otp_forwarder(bot):
             pass
         await asyncio.sleep(POLL_INTERVAL)
 
-# /start কমান্ড ও মেইন মেনু
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         "👑 **NUMBER BOT**\n\n"
@@ -148,7 +144,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("👤 SUPPORT", url="https://t.me/")]
     ]
     
-    # অ্যাডমিন হলে এক্সট্রা প্যানেল বাটন দেখানো হবে
     user_id = update.effective_user.id
     if user_id == ADMIN_USER_ID:
         keyboard.append([InlineKeyboardButton("⚙️ Admin Panel (View Ranges)", callback_data="admin_panel")])
@@ -160,7 +155,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(welcome_text, reply_markup=markup, parse_mode="Markdown")
 
-# অ্যাডমিন কমান্ড: রেঞ্জ সেট করার জন্য (/setrange whatsapp 4473845)
 async def set_range_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != ADMIN_USER_ID:
@@ -174,7 +168,7 @@ async def set_range_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "`/setrange <service> <range>`\n\n"
             "উদাহরণ:\n"
             "`/setrange whatsapp 4473845XXX`\n"
-            "`/setrange facebook 4473846XXX`",
+            "`/setrange facebook 992778XXX`",
             parse_mode="Markdown"
         )
         return
@@ -188,7 +182,6 @@ async def set_range_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"✅ সফলভাবে **{service.upper()}** এর জন্য নতুন রেঞ্জ সেট করা হয়েছে:\n`{range_value}`", parse_mode="Markdown")
 
-# অ্যাডমিন প্যানেল ভিউ
 async def admin_panel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if query.from_user.id != ADMIN_USER_ID:
@@ -206,7 +199,6 @@ async def admin_panel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="main_menu")]]
     await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-# সার্ভিস সিলেকশন মেনু
 async def menu_services(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -220,17 +212,15 @@ async def menu_services(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-# জেনেক্স প্যানেল থেকে ডায়নামিক রেঞ্জ অনুযায়ী নম্বর রিকোয়েস্ট করা
 async def fetch_and_show_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("Fetching number from Zenex...")
+    await query.answer("Fetching new number from Zenex...")
     
     data_parts = query.data.split("_")
     service = data_parts[1].lower()
     
-    # সেভ করা রেঞ্জ ফাইল থেকে নির্দিষ্ট সার্ভিসের রেঞ্জ লোড করা
     ranges = load_ranges()
-    range_value = ranges.get(service, "4473845XXX") # যদি রেঞ্জ সেট করা না থাকে তবে ডিফল্ট রেঞ্জ ধরবে
+    range_value = ranges.get(service, "4473845XXX")
     
     headers = {
         "mapikey": PANEL_API_KEY,
@@ -265,13 +255,14 @@ async def fetch_and_show_number(update: Update, context: ContextTypes.DEFAULT_TY
                 except:
                     num_btn = InlineKeyboardButton(text=f"📱 {number}", callback_data=f"otp_{number}")
             else:
-                num_btn = InlineKeyboardButton(text=f"📱 {number}", callback_data=f"otp_{number}")
+                num_btn = InlineKeyboardButton(text=f"📱 {number}", callback_data=f"otp_{number}" )
 
+            # এখানে Change Number বাটনের callback_data-তে সরাসরি ওই সার্ভিসের ট্যাগ দেওয়া হলো, যেন চাপ দিলে নতুন নাম্বার দেয়
             keyboard = [
                 [num_btn],
                 [InlineKeyboardButton("🗑️ Remove CC", callback_data="main_menu")],
-                [InlineKeyboardButton("🔄 Change Number", callback_data="menu_services")],
-                [InlineKeyboardButton("🔙 Back", callback_data="main_menu")]
+                [InlineKeyboardButton("🔄 Change Number", callback_data=f"get_{service}")],
+                [InlineKeyboardButton("🔙 Back", callback_data="menu_services")]
             ]
             await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
         else:
@@ -280,7 +271,6 @@ async def fetch_and_show_number(update: Update, context: ContextTypes.DEFAULT_TY
     except Exception as e:
         await query.answer(f"⚠️ Error: {str(e)}", show_alert=True)
 
-# বাটন হ্যান্ডলার
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     data = query.data
@@ -302,12 +292,11 @@ async def post_init(application):
 def main():
     application = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
-    # হ্যান্ডলার রেজিস্টার
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("setrange", set_range_command))
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    print("🤖 Zenex Number Bot with Admin Range Panel is running...")
+    print("🤖 Zenex Number Bot is running smoothly...")
     application.run_polling()
 
 if __name__ == '__main__':
