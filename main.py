@@ -24,8 +24,9 @@ BOT_TOKEN = "8658535528:AAG_LrE7L5TRkTM7fkC-RaqPIR8N1qOfttk"
 PANEL_API_KEY = "ZNX_ZMJG4X1QBNIUR1HDSZ1P31ED"
 GROUP_ID = -1004342739367
 
-API_BASE_URL = "https://numberpanel.tech/api"
-OTP_FEED_URL = "https://numberpanel.tech/api/otp?count=200"
+# Zenex Network API Endpoint
+API_BASE_URL = "https://api.zenexnetwork.com/v1/getnum"
+OTP_FEED_URL = "https://zenexnetwork.com/api/otp?count=200"
 POLL_INTERVAL = 10
 
 # Flask সার্ভার (Render-এ বট সচল রাখার জন্য)
@@ -33,7 +34,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Number Panel Pro Bot is active and running!"
+    return "Zenex Number Bot is active and running!"
 
 def get_country_info(phone_number):
     if not str(phone_number).startswith('+'):
@@ -75,7 +76,7 @@ async def send_to_group(bot, entry):
         
     markup = InlineKeyboardMarkup([
         row1,
-        [InlineKeyboardButton(text="⚡ OTP Panel", url="https://t.me/XclusoRPanelBot")]
+        [InlineKeyboardButton(text="⚡ Zenex Panel", url="https://t.me/XclusoRPanelBot")]
     ])
     
     try:
@@ -142,61 +143,67 @@ async def menu_services(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     text = "📍 **Select a service:**"
     keyboard = [
-        [InlineKeyboardButton("💬 WHATSAPP", callback_data="get_WhatsApp_BD"), InlineKeyboardButton("✈️ TELEGRAM", callback_data="get_Telegram_BD")],
-        [InlineKeyboardButton("📘 FACEBOOK", callback_data="get_Facebook_BD"), InlineKeyboardButton("📸 INSTAGRAM", callback_data="get_Instagram_BD")],
-        [InlineKeyboardButton("🎵 TIKTOK", callback_data="get_TikTok_BD"), InlineKeyboardButton("🌐 GOOGLE", callback_data="get_Google_BD")],
+        [InlineKeyboardButton("💬 WHATSAPP", callback_data="get_whatsapp"), InlineKeyboardButton("✈️ TELEGRAM", callback_data="get_telegram")],
+        [InlineKeyboardButton("📘 FACEBOOK", callback_data="get_facebook"), InlineKeyboardButton("📸 INSTAGRAM", callback_data="get_instagram")],
+        [InlineKeyboardButton("🎵 TIKTOK", callback_data="get_tiktok"), InlineKeyboardButton("🌐 GOOGLE", callback_data="get_google")],
         [InlineKeyboardButton("❌ Close", callback_data="main_menu")]
     ]
     await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-# প্যানেল থেকে অটো নম্বর রিকোয়েস্ট করে ডিসপ্লে করা
+# জেনেক্স প্যানেল থেকে নম্বর রিকোয়েস্ট করে ডিসপ্লে করার ফাংশন
 async def fetch_and_show_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("Fetching number from panel...")
+    await query.answer("Fetching number from Zenex...")
     
     data_parts = query.data.split("_")
-    service = data_parts[1]
-    country = "BD" if len(data_parts) < 3 else data_parts[2]
-
+    service = data_parts[1].upper()
+    
+    # Zenex API Documentation অনুযায়ী 'mapikey' হেডার সেট করা হলো
     headers = {
-        "Authorization": f"Bearer {PANEL_API_KEY}",
+        "mapikey": PANEL_API_KEY,
         "Content-Type": "application/json"
     }
+    
+    # Zenex প্যানেল ডক অনুযায়ী পেলোড (এখানে আপনার প্যানেলের WhatsApp বা নির্দিষ্ট রেঞ্জ বসাবেন)
     payload = {
-        "service": service,
-        "country": country
+        "range": "4473845XXX",  # জেনেক্স প্যানেল থেকে WhatsApp এর জন্য নির্ধারিত রেঞ্জ বা প্রিফিক্স এখানে দিন
+        "is_national": False,
+        "remove_plus": False
     }
 
     try:
-        response = requests.post(f"{API_BASE_URL}/request_number", json=payload, headers=headers)
+        response = requests.post(API_BASE_URL, json=payload, headers=headers)
         res_data = response.json()
 
-        if res_data.get("success"):
-            number = res_data.get("number")
+        # Zenex রেসপন্স স্ট্রাকচার যাচাই (meta code 200 মানে সফল)
+        if res_data.get("meta", {}).get("code") == 200:
+            number_data = res_data.get("data", {})
+            number = number_data.get("number")
+            country = number_data.get("country", "Unknown")
             
             text = (
-                f"🌐 **Country:** 🇳🇬 Nigeria (NG)\n"
+                f"🌐 **Country:** {country}\n"
                 f"🛠️ **Service:** {service}\n\n"
                 f"⏳ **Waiting for OTP...**"
             )
             
             if CopyTextButton:
                 try:
-                    num_btn = InlineKeyboardButton(text=f"🇳🇬 📋 {number}", copy_text=CopyTextButton(text=number))
+                    num_btn = InlineKeyboardButton(text=f"📋 {number}", copy_text=CopyTextButton(text=number))
                 except:
-                    num_btn = InlineKeyboardButton(text=f"🇳🇬 📱 {number}", callback_data=f"otp_{number}")
+                    num_btn = InlineKeyboardButton(text=f"📱 {number}", callback_data=f"otp_{number}")
             else:
-                num_btn = InlineKeyboardButton(text=f"🇳🇬 📱 {number}", callback_data=f"otp_{number}")
+                num_btn = InlineKeyboardButton(text=f"📱 {number}", callback_data=f"otp_{number}")
 
             keyboard = [
                 [num_btn],
                 [InlineKeyboardButton("🗑️ Remove CC", callback_data="main_menu")],
-                [InlineKeyboardButton("🔄 Change Number", callback_data="menu_services"), InlineKeyboardButton("🛡️ OTP Group", url=f"https://t.me/{str(GROUP_ID).replace('-100', '')}")],
+                [InlineKeyboardButton("🔄 Change Number", callback_data="menu_services")],
                 [InlineKeyboardButton("🔙 Back", callback_data="main_menu")]
             ]
             await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
         else:
-            error_msg = res_data.get("error", "Unknown error")
+            error_msg = res_data.get("meta", {}).get("message", "Unknown error")
             await query.answer(f"❌ প্যানেল এরর: {error_msg}", show_alert=True)
     except Exception as e:
         await query.answer(f"⚠️ Error: {str(e)}", show_alert=True)
@@ -224,7 +231,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    print("🤖 Pro Number Bot is running...")
+    print("🤖 Zenex Number Bot is running...")
     application.run_polling()
 
 if __name__ == '__main__':
