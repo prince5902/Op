@@ -21,7 +21,7 @@ except ImportError:
     CopyTextButton = None
 
 # === CONFIGURATION ===
-BOT_TOKEN = "8658535528:AAG_LrE7L5TRkTM7fkC-RaqPIR8N1qOfttk"
+BOT_TOKEN = "8658535528:AAHNueVHah5_t_tm9rI2okuChpgYRrvisf0"
 PANEL_API_KEY = "ZNX_ZMJG4X1QBNIUR1HDSZ1P31ED"
 GROUP_ID = -1004342739367
 ADMIN_USER_ID = 7270449654  # আপনার অ্যাডমিন ইউজার আইডি
@@ -29,10 +29,10 @@ ADMIN_USER_ID = 7270449654  # আপনার অ্যাডমিন ইউজ
 # Zenex Network API Endpoint
 API_BASE_URL = "https://api.zenexnetwork.com/v1/getnum"
 OTP_FEED_URL = "https://zenexnetwork.com/api/otp?count=200"
-POLL_INTERVAL = 5
+POLL_INTERVAL = 3
 
 RANGES_FILE = "ranges.json"
-ACTIVE_NUMBERS_FILE = "active_numbers.json"  # মেম্বার এবং তাদের নেওয়া নাম্বারের ম্যাপিং ট্র্যাক করার জন্য
+ACTIVE_NUMBERS_FILE = "active_numbers.json"
 
 # Flask সার্ভার (Render-এ বট সচল রাখার জন্য)
 app = Flask(__name__)
@@ -86,92 +86,103 @@ def extract_otp(msg):
     otp_match = re.search(r'\d{3}[-\s]?\d{3,4}|\d{4,8}', str(msg))
     return otp_match.group(0) if otp_match else 'Unknown'
 
-# ব্যাকগ্রাউন্ড লুপ: গ্রুপে সব লাইভ কোড পাঠাবে এবং মেম্বারের ইনবক্সে শুধু তার নাম্বারের কোড পাঠাবে
+# ব্যাকগ্রাউন্ড লুপ: শুধুমাত্র রিয়েল-টাইম নতুন ওটিপি ট্র্যাক করে পাঠাবে
 async def background_otp_forwarder(bot):
     seen_otps = set()
-    try:
-        resp = requests.get(OTP_FEED_URL).json()
-        for item in resp:
-            uid = f"{item[0]}_{item[1]}_{item[3]}"
-            seen_otps.add(uid)
-    except:
-        pass
-        
+    is_first_run = True
+    
     while True:
         try:
-            resp = requests.get(OTP_FEED_URL).json()
-            for item in reversed(resp):
-                uid = f"{item[0]}_{item[1]}_{item[3]}"
-                if uid not in seen_otps:
-                    seen_otps.add(uid)
-                    
-                    service = item[0]
-                    num = item[1]
-                    msg = item[2]
-                    clean_num = str(num).replace("+", "").strip()
-                    
-                    flag, iso = get_country_info(num)
-                    otp = extract_otp(msg)
-                    
-                    # ১. গ্রুপে সব কোড লাইভ পাঠানো (Unfiltered/All live codes)
-                    group_text = f"{flag} <b>#{iso} 📱 {service} {num}</b> ➡️"
-                    if CopyTextButton:
-                        try:
-                            g_row1 = [InlineKeyboardButton(text=f"🔑 {otp}", copy_text=CopyTextButton(text=otp))]
-                        except:
-                            g_row1 = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
-                    else:
-                        g_row1 = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
-                        
-                    group_markup = InlineKeyboardMarkup([
-                        g_row1,
-                        [InlineKeyboardButton(text="⚡ Zenex Panel", url="https://t.me/XclusoRPanelBot")]
-                    ])
-                    
+            resp = requests.get(OTP_FEED_URL, timeout=10).json()
+            if isinstance(resp, list):
+                if is_first_run:
+                    for item in resp:
+                        uid = f"{item[0]}_{item[1]}_{item[2]}"
+                        seen_otps.add(uid)
+                    is_first_run = False
+                    await asyncio.sleep(POLL_INTERVAL)
+                    continue
+
+                for item in reversed(resp):
                     try:
-                        await bot.send_message(
-                            chat_id=GROUP_ID,
-                            text=group_text,
-                            parse_mode=ParseMode.HTML,
-                            reply_markup=group_markup
-                        )
-                    except Exception as e:
-                        print(f"❌ Failed to send to group: {e}")
-                    
-                    # ২. বটে (প্রাইভেটে): মেম্বার যেই নাম্বার নিয়েছে শুধু তার ইনবক্সে কোড পাঠানো
-                    active_nums = load_active_numbers()
-                    for user_id, saved_num in active_nums.items():
-                        if clean_num == saved_num:
-                            pm_text = (
-                                f"🔔 **New OTP Received!**\n\n"
-                                f"🌐 **Service:** {service.upper()}\n"
-                                f"📱 **Number:** `{num}`\n"
-                                f"💬 **Message:** `{msg}`\n\n"
-                                f"🔑 **OTP Code:** `{otp}`"
-                            )
+                        service = item[0]
+                        num = item[1]
+                        msg = item[2]
+                        uid = f"{service}_{num}_{msg}"
+                        
+                        if uid not in seen_otps:
+                            seen_otps.add(uid)
+                            
+                            if len(seen_otps) > 1000:
+                                list_items = list(seen_otps)
+                                seen_otps = set(list_items[500:])
+
+                            clean_num = str(num).replace("+", "").strip()
+                            flag, iso = get_country_info(num)
+                            otp = extract_otp(msg)
+                            
+                            # ১. গ্রুপে লাইভ কোড পাঠানো
+                            group_text = f"{flag} <b>#{iso} 📱 {service} {num}</b> ➡️"
                             if CopyTextButton:
                                 try:
-                                    pm_row = [InlineKeyboardButton(text=f"📋 Copy OTP: {otp}", copy_text=CopyTextButton(text=otp))]
+                                    g_row1 = [InlineKeyboardButton(text=f"🔑 {otp}", copy_text=CopyTextButton(text=otp))]
                                 except:
-                                    pm_row = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
+                                    g_row1 = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
                             else:
-                                pm_row = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
+                                g_row1 = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
                                 
-                            pm_markup = InlineKeyboardMarkup([pm_row])
+                            group_markup = InlineKeyboardMarkup([
+                                g_row1,
+                                [InlineKeyboardButton(text="⚡ Zenex Panel", url="https://t.me/XclusoRPanelBot")]
+                            ])
                             
                             try:
                                 await bot.send_message(
-                                    chat_id=int(user_id),
-                                    text=pm_text,
+                                    chat_id=GROUP_ID,
+                                    text=group_text,
                                     parse_mode=ParseMode.HTML,
-                                    reply_markup=pm_markup
+                                    reply_markup=group_markup
                                 )
                             except Exception as e:
-                                print(f"❌ Failed to send PM to user {user_id}: {e}")
+                                print(f"❌ Failed to send to group: {e}")
+                            
+                            # ২. বটে (প্রাইভেটে): মেম্বার যে নাম্বার নিয়েছে তার ইনবক্সে পাঠানো
+                            active_nums = load_active_numbers()
+                            for user_id, saved_num in active_nums.items():
+                                if clean_num == saved_num:
+                                    pm_text = (
+                                        f"🔔 **New OTP Received!**\n\n"
+                                        f"🌐 **Service:** {service.upper()}\n"
+                                        f"📱 **Number:** `{num}`\n"
+                                        f"💬 **Message:** `{msg}`\n\n"
+                                        f"🔑 **OTP Code:** `{otp}`"
+                                    )
+                                    if CopyTextButton:
+                                        try:
+                                            pm_row = [InlineKeyboardButton(text=f"📋 Copy OTP: {otp}", copy_text=CopyTextButton(text=otp))]
+                                        except:
+                                            pm_row = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
+                                    else:
+                                        pm_row = [InlineKeyboardButton(text=f"🔑 {otp}", callback_data="noop")]
+                                        
+                                    pm_markup = InlineKeyboardMarkup([pm_row])
+                                    
+                                    try:
+                                        await bot.send_message(
+                                            chat_id=int(user_id),
+                                            text=pm_text,
+                                            parse_mode=ParseMode.HTML,
+                                            reply_markup=pm_markup
+                                        )
+                                    except Exception as e:
+                                        print(f"❌ Failed to send PM to user {user_id}: {e}")
 
-                    await asyncio.sleep(0.3)
-        except:
-            pass
+                            await asyncio.sleep(0.2)
+                    except Exception as inner_e:
+                        print(f"Inner loop error: {inner_e}")
+        except Exception as e:
+            print(f"API Fetch error: {e}")
+            
         await asyncio.sleep(POLL_INTERVAL)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -213,8 +224,7 @@ async def set_range_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⚠️ সঠিক নিয়মে কমান্ড দিন:\n"
             "`/setrange <service> <range>`\n\n"
             "উদাহরণ:\n"
-            "`/setrange whatsapp 4473845XXX`\n"
-            "`/setrange facebook 992778XXX`",
+            "`/setrange whatsapp 4473845XXX`",
             parse_mode="Markdown"
         )
         return
@@ -240,7 +250,7 @@ async def admin_panel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         for s, r in ranges.items():
             text += f"🔹 **{s.upper()}**: `{r}`\n"
     else:
-        text += "কোনো রেঞ্জ এখনো সেভ করা হয়নি।\nসেভ করতে `/setrange` কমান্ড ব্যবহার করুন।"
+        text += "কোনো রেঞ্জ এখনো সেভ করা হয়নি।"
 
     keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="main_menu")]]
     await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
@@ -293,7 +303,6 @@ async def fetch_and_show_number(update: Update, context: ContextTypes.DEFAULT_TY
             number = number_data.get("number")
             country = number_data.get("country", "Unknown")
             
-            # মেম্বার এই নাম্বারটি নিয়েছে, এটি সেভ করে রাখা হলো যাতে এর ওটিপি তার ইনবক্সে যায়
             clean_num = str(number).replace("+", "").strip()
             active_nums = load_active_numbers()
             active_nums[user_id] = clean_num
@@ -309,9 +318,9 @@ async def fetch_and_show_number(update: Update, context: ContextTypes.DEFAULT_TY
                 try:
                     num_btn = InlineKeyboardButton(text=f"📋 {number}", copy_text=CopyTextButton(text=number))
                 except:
-                    num_btn = InlineKeyboardButton(text=f"📱 {number}", callback_data=f"otp_{number}")
+                    num_btn = InlineKeyboardButton(text=f"📱 {number}", callback_data="noop")
             else:
-                num_btn = InlineKeyboardButton(text=f"📱 {number}", callback_data=f"otp_{number}")
+                num_btn = InlineKeyboardButton(text=f"📱 {number}", callback_data="noop")
 
             keyboard = [
                 [num_btn],
