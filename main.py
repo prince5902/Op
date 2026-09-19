@@ -214,13 +214,17 @@ async def menu_services(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def fetch_and_show_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("Fetching new number from Zenex...")
     
     data_parts = query.data.split("_")
     service = data_parts[1].lower()
     
     ranges = load_ranges()
-    range_value = ranges.get(service, "4473845XXX")
+    if service not in ranges:
+        await query.answer(f"❌ {service.upper()} এর জন্য কোনো রেঞ্জ সেট করা হয়নি!", show_alert=True)
+        return
+    
+    range_value = ranges[service]
+    await query.answer("Fetching new number from Zenex...")
     
     headers = {
         "mapikey": PANEL_API_KEY,
@@ -242,10 +246,10 @@ async def fetch_and_show_number(update: Update, context: ContextTypes.DEFAULT_TY
             number = number_data.get("number")
             country = number_data.get("country", "Unknown")
             
+            # রেঞ্জ তথ্য এখানে বাদ দেওয়া হয়েছে যাতে মেম্বাররা দেখতে না পায়
             text = (
                 f"🌐 **Country:** {country}\n"
-                f"🛠️ **Service:** {service.upper()}\n"
-                f"📌 **Using Range:** `{range_value}`\n\n"
+                f"🛠️ **Service:** {service.upper()}\n\n"
                 f"⏳ **Waiting for OTP...**"
             )
             
@@ -255,12 +259,12 @@ async def fetch_and_show_number(update: Update, context: ContextTypes.DEFAULT_TY
                 except:
                     num_btn = InlineKeyboardButton(text=f"📱 {number}", callback_data=f"otp_{number}")
             else:
-                num_btn = InlineKeyboardButton(text=f"📱 {number}", callback_data=f"otp_{number}" )
+                num_btn = InlineKeyboardButton(text=f"📱 {number}", callback_data=f"otp_{number}")
 
-            # এখানে Change Number বাটনের callback_data-তে সরাসরি ওই সার্ভিসের ট্যাগ দেওয়া হলো, যেন চাপ দিলে নতুন নাম্বার দেয়
+            # Remove CC বাটনে সার্ভিস এবং নাম্বার পাস করা হলো
             keyboard = [
                 [num_btn],
-                [InlineKeyboardButton("🗑️ Remove CC", callback_data="main_menu")],
+                [InlineKeyboardButton("🗑️ Remove CC", callback_data=f"removecc_{service}_{number}")],
                 [InlineKeyboardButton("🔄 Change Number", callback_data=f"get_{service}")],
                 [InlineKeyboardButton("🔙 Back", callback_data="menu_services")]
             ]
@@ -270,6 +274,49 @@ async def fetch_and_show_number(update: Update, context: ContextTypes.DEFAULT_TY
             await query.answer(f"❌ প্যানেল এরর: {error_msg}", show_alert=True)
     except Exception as e:
         await query.answer(f"⚠️ Error: {str(e)}", show_alert=True)
+
+# কান্ট্রি কোড রিমুভ করার হ্যান্ডলার
+async def remove_cc_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    data_parts = query.data.split("_")
+    if len(data_parts) < 3:
+        await query.answer("Invalid action", show_alert=True)
+        return
+    
+    service = data_parts[1]
+    number = data_parts[2]
+    
+    try:
+        if not number.startswith('+'):
+            num_parse = '+' + number
+        else:
+            num_parse = number
+        parsed = phonenumbers.parse(num_parse)
+        national_number = str(parsed.national_number)
+    except:
+        national_number = number.replace("+", "")
+        
+    await query.answer("✅ কান্ট্রি কোড সফলভাবে রিমুভ করা হয়েছে!", show_alert=True)
+    
+    if CopyTextButton:
+        try:
+            num_btn = InlineKeyboardButton(text=f"📋 {national_number} (No CC)", copy_text=CopyTextButton(text=national_number))
+        except:
+            num_btn = InlineKeyboardButton(text=f"📱 {national_number}", callback_data="noop")
+    else:
+        num_btn = InlineKeyboardButton(text=f"📱 {national_number}", callback_data="noop")
+
+    keyboard = [
+        [num_btn],
+        [InlineKeyboardButton("✅ CC Removed", callback_data="noop")],
+        [InlineKeyboardButton("🔄 Change Number", callback_data=f"get_{service}")],
+        [InlineKeyboardButton("🔙 Back", callback_data="menu_services")]
+    ]
+    
+    try:
+        await query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+    except:
+        pass
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -281,6 +328,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await menu_services(update, context)
     elif data.startswith("get_"):
         await fetch_and_show_number(update, context)
+    elif data.startswith("removecc_"):
+        await remove_cc_handler(update, context)
     elif data == "admin_panel":
         await admin_panel_handler(update, context)
     else:
